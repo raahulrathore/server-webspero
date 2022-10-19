@@ -21,6 +21,7 @@ const userSchema = new mongoose.Schema(
         lng: { type: Number, required: true },
       },
     },
+    photo:{type:String}
   },
   { timestamps: true }
 );
@@ -57,6 +58,7 @@ const validate = (data) => {
       },
       //   coords: Joi.array().items(Joi.number(), Joi.number()),
     },
+    
   });
   return schema.validate(data);
 };

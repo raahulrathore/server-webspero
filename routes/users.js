@@ -1,6 +1,9 @@
 const router = require("express").Router();
 const { User, validate } = require("../models/user");
 const bcrypt = require("bcrypt");
+const multer = require("multer");
+const path = require("path");
+const { v4: uuidv4 } = require("uuid");
 
 router.post("/", async (req, res) => {
   try {
@@ -18,9 +21,14 @@ router.post("/", async (req, res) => {
         .send({ message: "User with given email already Exist!" });
 
     const salt = await bcrypt.genSalt(Number(process.env.SALT));
-    const hashPassword = await bcrypt.hash(req.body.password, salt);
+    // const hashPassword = await bcrypt.hash(req.body.password, salt); req.body.password
     // console.log("21----", req.body);
-    await new User({ ...req.body, password: hashPassword }).save();
+    await new User({
+      ...req.body,
+      password: req.body.password,
+      photo: "",
+    }).save();
+    // await new User({ ...req.body, password: hashPassword }).save();
     // console.log("user created");
     res.status(201).send({ message: "User created successfully" });
   } catch (error) {
@@ -29,12 +37,7 @@ router.post("/", async (req, res) => {
 });
 
 router.get("/profile", async (req, res) => {
-  //   console.log("hiii");
-  //   try {
-  //     console.log("req.body", req.body);
-  //     const user = await User.findOne({ id: req.body.userId });
-  //     console.log("user123", user);
-  // res.status(201).send({ user });
+
   try {
     // let user = req.user;
     const user = await User.findOne({ id: req.body.userId });
@@ -61,6 +64,7 @@ router.get("/profile", async (req, res) => {
           name: data.firstName + " " + data.lastName,
           email: data.email,
           mobile: data.mobile,
+          photo: data.photo,
         };
 
         userArr.push(serializedData);
@@ -76,12 +80,7 @@ router.get("/profile", async (req, res) => {
       success: false,
     });
   }
-  // }
-
-  //   }
-  //   catch (err) {
-  //     console.log(err);
-  //   }
+ 
 });
 /*
 router.get("/nearest-user", async (req, res) => {
@@ -139,39 +138,69 @@ router.get("/nearest-user", async (req, res) => {
     }
 });
 */
+const MIME_TYPE_MAP = {
+  "image/png": "png",
+  "image/jpeg": "jpeg",
+  "image/jpg": "jpg",
+};
 
-router.patch("/current-profile", async (req, res) => {
-  let user;
-  try {
-    console.log("req.body", req.body.firstName);
-    let firstName = req.body.firstName;
-    let lastName = req.body.lastName;
-    let email = req.body.email;
-    let mobile = req.body.mobile;
-    user = await User.findOne({ id: req.body.userId });
-    // 	Object.keys(req.body).map((k) =>
-    //   req.body[k] == "" ? delete req.body[k] : req.body[k]
-    // );
-    // user.firstName = req.body.firstName
-    user.firstName = firstName;
-    user.lastName = lastName ;
-    user.email = email;
-    user.mobile = mobile;
 
-    console.log("update--", user);
-
-    console.log("curr", user);
-  } catch (err) {
-    console.log(err);
-  }
-  try {
-    await user.save();
-    res.status(201).json({
-      message: "Updated data",
-      user,
-    });
-  } catch (e) {
-    console.log(e);
-  }
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "images");
+  },
+  filename: (req, file, cb) => {
+    console.log(file);
+    const ext = MIME_TYPE_MAP[file.mimetype];
+    cb(null, uuidv4() + "." + ext);
+  },
 });
+const fileFilter = (req, file, cb) => {
+  const isValid = !!MIME_TYPE_MAP[file.mimetype];
+  let error = isValid ? null : new Error("Invalid mime type!");
+  cb(error, isValid);
+};
+
+let upload = multer({ storage, fileFilter });
+
+// router.patch("/current-profile", async (req, res) => {
+router
+  .route("/current-profile")
+  .patch(upload.single("photo"), async (req, res) => {
+    let user;
+    try {
+      // console.log("req.body", req.file);
+      // req.file.filename = req.file.filename+'.'+'png'
+      console.log("body--", req.body);
+      let firstName = req.body.firstName;
+      let lastName = req.body.lastName;
+      let email = req.body.email;
+      let mobile = req.body.mobile;
+      let photo = req.file?.filename;
+      // console.log('photoo',photo)
+      user = await User.findOne({ email: req.body.email });
+      console.log('user--',user)
+      
+      user.firstName = firstName;
+      user.lastName = lastName;
+      user.email = email;
+      user.mobile = mobile;
+      if(photo){
+        user.photo = photo
+      }
+      console.log('upd--',user)
+     
+    } catch (err) {
+      console.log(err);
+    }
+    try {
+      await user.save();
+      res.status(201).json({
+        message: "Updated data",
+        user,
+      });
+    } catch (e) {
+      console.log(e);
+    }
+  });
 module.exports = router;
